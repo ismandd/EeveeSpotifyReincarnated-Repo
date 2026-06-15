@@ -1,0 +1,237 @@
+name: Build IPA (NO PATCH) Automation
+
+on:
+  schedule:
+    - cron: '5,20,35,50 * * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build from"
+        default: "Master"
+        required: true
+        type: string
+      ipa_url:
+        description: "URL to decrypted Spotify IPA"
+        default: "https://github.com/ismandd/LatestDecyptedSpotifyIpa/releases/latest/download/Spotify-AppAssassin.ipa"
+        required: false
+        type: string
+
+env:
+  THEOS: ${{ github.workspace }}/theos
+  SWIFTPROTOBUF_VERSION: "1.29.0"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Upstream
+        uses: actions/checkout@v4
+        with:
+          repository: jaydenjcpy/EeveeSpotifyReincarnated
+          ref: ${{ inputs.branch || 'Master' }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.2.0'
+
+      - name: Setup Theos
+        uses: actions/checkout@v4
+        with:
+          repository: theos/theos
+          path: ${{ github.workspace }}/theos
+          submodules: recursive
+
+      - name: Install build tools
+        run: |
+          brew install make dpkg ldid wget
+          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+          python3 -m pip install --upgrade --break-system-packages git+https://github.com/asdfzxcvbn/pyzule-rw.git
+          ARCH=$(uname -m)
+          if [ "$ARCH" = "x86_64" ]; then
+            SUFFIX=macos-amd64
+          else
+            SUFFIX=macos-arm64
+          fi
+          sudo curl -fsSL "https://github.com/asdfzxcvbn/ipapatch/releases/latest/download/ipapatch.${SUFFIX}" -o /usr/local/bin/ipapatch
+          sudo chmod +x /usr/local/bin/ipapatch
+          ipapatch --help >/dev/null
+
+      - name: Build EeveeSwiftProtobuf.framework from source
+        env:
+          SWIFTPROTOBUF_VERSION: ${{ env.SWIFTPROTOBUF_VERSION }}
+        run: |
+          chmod +x Tools/SwiftProtobufBuild/build-eeveeswiftprotobuf.sh
+          Tools/SwiftProtobufBuild/build-eeveeswiftprotobuf.sh
+
+      - name: Validate vanilla IPA and Get Version
+        run: |
+          TARGET_URL="${{ inputs.ipa_url }}"
+          if [ -z "$TARGET_URL" ]; then
+            TARGET_URL="https://github.com/ismandd/LatestDecyptedSpotifyIpa/releases/latest/download/Spotify-AppAssassin.ipa"
+          fi
+          wget "$TARGET_URL" --no-verbose -O ${{ github.workspace }}/spotify.ipa
+          file_type=$(file --mime-type -b ${{ github.workspace }}/spotify.ipa)
+          if [ "$file_type" != "application/x-ios-app" ] && [ "$file_type" != "application/zip" ]; then
+            exit 1
+          fi
+          SPOT_VERSION=$(unzip -p ${{ github.workspace }}/spotify.ipa 'Payload/Spotify.app/Info.plist' | plutil -extract CFBundleShortVersionString raw - 2>/dev/null || echo "unknown")
+          echo "SPOT_VERSION=$SPOT_VERSION" >> $GITHUB_ENV
+          
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          echo "COMMIT_HASH=$COMMIT_HASH" >> $GITHUB_ENV
+
+      - name: Check Upstream Stable Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          UPSTREAM_RELEASE=$(gh api repos/jaydenjcpy/EeveeSpotifyReincarnated/releases --jq '.[0]')
+          UPSTREAM_VERSION=$(echo "$UPSTREAM_RELEASE" | jq -r '.tag_name' | sed 's/^v//')
+          DEB_URL=$(echo "$UPSTREAM_RELEASE" | jq -r '.assets[] | select(.name | endswith(".deb")) | .browser_download_url' | head -n 1)
+          echo "UPSTREAM_VERSION=$UPSTREAM_VERSION" >> $GITHUB_ENV
+          echo "STABLE_DEB_URL=$DEB_URL" >> $GITHUB_ENV
+          if [ -z "$UPSTREAM_VERSION" ] || [ "$UPSTREAM_VERSION" = "null" ] || [ -z "$DEB_URL" ] || [ "$DEB_URL" = "null" ]; then
+            echo "NEED_STABLE=false" >> $GITHUB_ENV
+            echo "STABLE_TAG=vunknown" >> $GITHUB_ENV
+          else
+            STABLE_TAG="v${UPSTREAM_VERSION}-${SPOT_VERSION}"
+            echo "STABLE_TAG=$STABLE_TAG" >> $GITHUB_ENV
+            if gh release view "$STABLE_TAG" > /dev/null 2>&1; then
+              echo "NEED_STABLE=false" >> $GITHUB_ENV
+            else
+              echo "NEED_STABLE=true" >> $GITHUB_ENV
+            fi
+          fi
+
+      - name: Build Local .deb
+        env:
+          REPO_SLUG: ${{ github.repository }}
+        run: |
+          THEOS_PACKAGE_SCHEME=rootless make package FINALPACKAGE=1
+          DEB_PATH=$(find packages -name "com.eevee.spotify_*.deb" | head -1)
+          if [ -z "$DEB_PATH" ]; then
+            exit 1
+          fi
+          echo "NIGHTLY_DEB_PATH=$DEB_PATH" >> $GITHUB_ENV
+          LOCAL_EEVEE_VERSION=$(grep -E '^Version:' control | awk '{print $2}')
+          echo "LOCAL_EEVEE_VERSION=$LOCAL_EEVEE_VERSION" >> $GITHUB_ENV
+
+      - name: Fetch OpenSpotifySafariExtension.appex
+        run: |
+          EXT_DIR="$RUNNER_TEMP/OpenSpotifySafariExtension"
+          rm -rf "$EXT_DIR"
+          git clone --depth 1 https://github.com/BillyCurtis/OpenSpotifySafariExtension.git "$EXT_DIR"
+          EXT_SRC="$EXT_DIR/OpenSpotifySafariExtension.appex"
+          if [ ! -e "$EXT_SRC" ]; then
+            exit 1
+          fi
+          echo "OPENSPOTIFY_APPEX=$EXT_SRC" >> $GITHUB_ENV
+
+      - name: Process and Inject IPAs
+        run: |
+          EXT_SRC="${{ env.OPENSPOTIFY_APPEX }}"
+          if [ "${{ env.NEED_STABLE }}" = "true" ]; then
+            mkdir -p Outputs/stable/deb-extract
+            wget "${{ env.STABLE_DEB_URL }}" -O Outputs/stable/stable.deb
+            dpkg-deb -R Outputs/stable/stable.deb Outputs/stable/deb-extract
+            DYLIB_SRC=$(find Outputs/stable/deb-extract -name 'EeveeSpotify.dylib' | head -1)
+            BUNDLE_SRC=$(find Outputs/stable/deb-extract -type d -name 'EeveeSpotify.bundle' | head -1)
+            FRAMEWORK_SRC=$(find Outputs/stable/deb-extract -type d -name 'EeveeSwiftProtobuf.framework' | head -1)
+            OUT_STABLE="Outputs/stable/EeveeSpotify-${{ env.UPSTREAM_VERSION }}-${{ env.SPOT_VERSION }}.ipa"
+            OUT_STABLE_GENERIC="Outputs/stable/EeveeSpotify.ipa"
+            INJECT=("$DYLIB_SRC")
+            if [ -n "$FRAMEWORK_SRC" ]; then
+              INJECT+=("$FRAMEWORK_SRC")
+            fi
+            if [ -n "$BUNDLE_SRC" ]; then
+              INJECT+=("$BUNDLE_SRC")
+            fi
+            cyan -i ${{ github.workspace }}/spotify.ipa -o "$OUT_STABLE" -f "${INJECT[@]}" -c 9 -m 15.0 -du
+            cp "$OUT_STABLE" "$OUT_STABLE_GENERIC"
+            chmod +x Tools/strip-ipa.sh
+            Tools/strip-ipa.sh "$OUT_STABLE"
+            Tools/strip-ipa.sh "$OUT_STABLE_GENERIC"
+            for IPA in "$OUT_STABLE" "$OUT_STABLE_GENERIC"; do
+              cd "$(dirname "$IPA")"
+              rm -rf Payload
+              unzip -q "$(basename "$IPA")"
+              mkdir -p "Payload/Spotify.app/Plugins"
+              cp -R "$EXT_SRC" "Payload/Spotify.app/Plugins/OpenSpotifySafariExtension.appex"
+              plutil -replace CFBundleShortVersionString -string "${{ env.UPSTREAM_VERSION }}.${{ env.SPOT_VERSION }}" "Payload/Spotify.app/Info.plist"
+              plutil -replace CFBundleIdentifier -string "com.spotify.client" "Payload/Spotify.app/Info.plist"
+              rm -f "$(basename "$IPA")"
+              zip -qry "$(basename "$IPA")" Payload
+              rm -rf Payload
+              cd - > /dev/null
+            done
+            chmod +x Tools/alt-icons.sh
+            Tools/alt-icons.sh "$OUT_STABLE"
+            Tools/alt-icons.sh "$OUT_STABLE_GENERIC"
+          fi
+          mkdir -p Outputs/nightly/deb-extract
+          dpkg-deb -R "${{ env.NIGHTLY_DEB_PATH }}" Outputs/nightly/deb-extract
+          DYLIB_SRC=$(find Outputs/nightly/deb-extract -name 'EeveeSpotify.dylib' | head -1)
+          BUNDLE_SRC=$(find Outputs/nightly/deb-extract -type d -name 'EeveeSpotify.bundle' | head -1)
+          FRAMEWORK_SRC=$(find Outputs/nightly/deb-extract -type d -name 'EeveeSwiftProtobuf.framework' | head -1)
+          OUT_NIGHTLY="Outputs/nightly/EeveeSpotify-v${{ env.LOCAL_EEVEE_VERSION }}-${{ env.SPOT_VERSION }}-nightly-${{ env.COMMIT_HASH }}.ipa"
+          OUT_NIGHTLY_GENERIC="Outputs/nightly/EeveeSpotify.ipa"
+          INJECT=("$DYLIB_SRC")
+          if [ -n "$FRAMEWORK_SRC" ]; then
+            INJECT+=("$FRAMEWORK_SRC")
+          fi
+          if [ -n "$BUNDLE_SRC" ]; then
+            INJECT+=("$BUNDLE_SRC")
+          fi
+          cyan -i ${{ github.workspace }}/spotify.ipa -o "$OUT_NIGHTLY" -f "${INJECT[@]}" -c 9 -m 15.0 -du
+          cp "$OUT_NIGHTLY" "$OUT_NIGHTLY_GENERIC"
+          chmod +x Tools/strip-ipa.sh
+          Tools/strip-ipa.sh "$OUT_NIGHTLY"
+          Tools/strip-ipa.sh "$OUT_NIGHTLY_GENERIC"
+          for IPA in "$OUT_NIGHTLY" "$OUT_NIGHTLY_GENERIC"; do
+            cd "$(dirname "$IPA")"
+            rm -rf Payload
+            unzip -q "$(basename "$IPA")"
+            mkdir -p "Payload/Spotify.app/Plugins"
+            cp -R "$EXT_SRC" "Payload/Spotify.app/Plugins/OpenSpotifySafariExtension.appex"
+            plutil -replace CFBundleShortVersionString -string "${{ env.LOCAL_EEVEE_VERSION }}.${{ env.SPOT_VERSION }}.${{ env.COMMIT_HASH }}" "Payload/Spotify.app/Info.plist"
+            plutil -replace CFBundleIdentifier -string "com.spotify.client.nightly" "Payload/Spotify.app/Info.plist"
+            rm -f "$(basename "$IPA")"
+            zip -qry "$(basename "$IPA")" Payload
+            rm -rf Payload
+            cd - > /dev/null
+          done
+          chmod +x Tools/alt-icons.sh
+          Tools/alt-icons.sh "$OUT_NIGHTLY"
+          Tools/alt-icons.sh "$OUT_NIGHTLY_GENERIC"
+
+      - name: Upload IPA Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: EeveeSpotify-IPAs
+          path: Outputs/
+          if-no-files-found: error
+
+      - name: Manage Releases and Publish
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NIGHTLY_TAG="v${{ env.LOCAL_EEVEE_VERSION }}-${{ env.SPOT_VERSION }}-nightly-${{ env.COMMIT_HASH }}"
+          OUT_NIGHTLY="Outputs/nightly/EeveeSpotify-v${{ env.LOCAL_EEVEE_VERSION }}-${{ env.SPOT_VERSION }}-nightly-${{ env.COMMIT_HASH }}.ipa"
+          OUT_NIGHTLY_GENERIC="Outputs/nightly/EeveeSpotify.ipa"
+          STABLE_TAG="${{ env.STABLE_TAG }}"
+          gh release delete "$NIGHTLY_TAG" --yes --cleanup-tag || true
+          gh release create "$NIGHTLY_TAG" "$OUT_NIGHTLY" "$OUT_NIGHTLY_GENERIC" --title "EeveeSpotify Nightly (${{ env.COMMIT_HASH }})" --prerelease
+          if [ "${{ env.NEED_STABLE }}" = "true" ] && [ "$STABLE_TAG" != "vunknown" ]; then
+            OUT_STABLE="Outputs/stable/EeveeSpotify-${{ env.UPSTREAM_VERSION }}-${{ env.SPOT_VERSION }}.ipa"
+            OUT_STABLE_GENERIC="Outputs/stable/EeveeSpotify.ipa"
+            gh release create "$STABLE_TAG" "$OUT_STABLE" "$OUT_STABLE_GENERIC" --title "EeveeSpotify $STABLE_TAG"
+          fi
+          RELEASES=$(gh release list --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null || true)
+          for tag in $RELEASES; do
+            if [ "$tag" != "$STABLE_TAG" ] && [ "$tag" != "$NIGHTLY_TAG" ]; then
+              gh release delete "$tag" --yes --cleanup-tag || true
+            fi
+          done
