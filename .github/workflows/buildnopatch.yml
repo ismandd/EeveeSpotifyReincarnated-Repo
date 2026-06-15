@@ -2,7 +2,7 @@ name: Build IPA (NO PATCH) Automation
 
 on:
   schedule:
-    - cron: '5,20,35,50 * * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       branch:
@@ -21,7 +21,33 @@ env:
   SWIFTPROTOBUF_VERSION: "1.29.0"
 
 jobs:
+  check-upstream:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Check for New Commits
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            UPSTREAM_COMMIT=$(gh api repos/jaydenjcpy/EeveeSpotifyReincarnated/commits/Master --jq '.sha' | cut -c1-7)
+            EXISTS=$(gh release list --repo "${{ github.repository }}" --limit 50 --json tagName --jq '.[].tagName' | grep "$UPSTREAM_COMMIT" || true)
+            if [ -n "$EXISTS" ]; then
+              echo "should_build=false" >> $GITHUB_OUTPUT
+            else
+              echo "should_build=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
   build:
+    needs: check-upstream
+    if: needs.check-upstream.outputs.should_build == 'true'
     runs-on: macos-latest
     permissions:
       contents: write
@@ -38,7 +64,15 @@ jobs:
         with:
           xcode-version: '16.2.0'
 
+      - name: Cache Theos
+        id: cache-theos
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/theos
+          key: ${{ runner.os }}-theos-v1
+
       - name: Setup Theos
+        if: steps.cache-theos.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           repository: theos/theos
@@ -99,7 +133,7 @@ jobs:
           else
             STABLE_TAG="v${UPSTREAM_VERSION}-${SPOT_VERSION}"
             echo "STABLE_TAG=$STABLE_TAG" >> $GITHUB_ENV
-            if gh release view "$STABLE_TAG" > /dev/null 2>&1; then
+            if gh release view "$STABLE_TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
               echo "NEED_STABLE=false" >> $GITHUB_ENV
             else
               echo "NEED_STABLE=true" >> $GITHUB_ENV
@@ -222,16 +256,16 @@ jobs:
           OUT_NIGHTLY="Outputs/nightly/EeveeSpotify-v${{ env.LOCAL_EEVEE_VERSION }}-${{ env.SPOT_VERSION }}-nightly-${{ env.COMMIT_HASH }}.ipa"
           OUT_NIGHTLY_GENERIC="Outputs/nightly/EeveeSpotify.ipa"
           STABLE_TAG="${{ env.STABLE_TAG }}"
-          gh release delete "$NIGHTLY_TAG" --yes --cleanup-tag || true
-          gh release create "$NIGHTLY_TAG" "$OUT_NIGHTLY" "$OUT_NIGHTLY_GENERIC" --title "EeveeSpotify Nightly (${{ env.COMMIT_HASH }})" --prerelease
+          gh release delete "$NIGHTLY_TAG" --repo "${{ github.repository }}" --yes --cleanup-tag || true
+          gh release create "$NIGHTLY_TAG" "$OUT_NIGHTLY" "$OUT_NIGHTLY_GENERIC" --repo "${{ github.repository }}" --title "EeveeSpotify Nightly (${{ env.COMMIT_HASH }})" --prerelease
           if [ "${{ env.NEED_STABLE }}" = "true" ] && [ "$STABLE_TAG" != "vunknown" ]; then
             OUT_STABLE="Outputs/stable/EeveeSpotify-${{ env.UPSTREAM_VERSION }}-${{ env.SPOT_VERSION }}.ipa"
             OUT_STABLE_GENERIC="Outputs/stable/EeveeSpotify.ipa"
-            gh release create "$STABLE_TAG" "$OUT_STABLE" "$OUT_STABLE_GENERIC" --title "EeveeSpotify $STABLE_TAG"
+            gh release create "$STABLE_TAG" "$OUT_STABLE" "$OUT_STABLE_GENERIC" --repo "${{ github.repository }}" --title "EeveeSpotify $STABLE_TAG"
           fi
-          RELEASES=$(gh release list --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null || true)
+          RELEASES=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName --jq '.[].tagName' 2>/dev/null || true)
           for tag in $RELEASES; do
             if [ "$tag" != "$STABLE_TAG" ] && [ "$tag" != "$NIGHTLY_TAG" ]; then
-              gh release delete "$tag" --yes --cleanup-tag || true
+              gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag || true
             fi
           done
