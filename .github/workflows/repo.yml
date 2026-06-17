@@ -18,33 +18,41 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           RELEASES_DATA=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases")
-          echo "Available Release Tags:"
-          echo "$RELEASES_DATA" | jq -r '.[].tag_name' 2>/dev/null || echo "None"
           STABLE_RELEASE=$(echo "$RELEASES_DATA" | jq -c '.[] | select(.tag_name | test("nightly") | not)' 2>/dev/null | head -n 1)
           NIGHTLY_RELEASE=$(echo "$RELEASES_DATA" | jq -c '.[] | select(.tag_name | test("nightly"))' 2>/dev/null | head -n 1)
           STABLE_RAW_TAG=$(echo "$STABLE_RELEASE" | jq -r '.tag_name // empty' 2>/dev/null)
           NIGHTLY_RAW_TAG=$(echo "$NIGHTLY_RELEASE" | jq -r '.tag_name // empty' 2>/dev/null)
           if [ -n "$STABLE_RAW_TAG" ]; then
-            STABLE_DL=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .browser_download_url' | head -n 1)
-            if [ -n "$STABLE_DL" ]; then
-              curl -L -o stable.ipa "$STABLE_DL"
-              unzip -p stable.ipa "Payload/*.app/Info.plist" > stable_info.plist
+            mkdir -p stable_tmp && cd stable_tmp
+            gh release download "$STABLE_RAW_TAG" --repo "${{ github.repository }}" --pattern "*.ipa" --clobber
+            STABLE_IPA=$(ls *.ipa 2>/dev/null | head -n 1)
+            if [ -n "$STABLE_IPA" ]; then
+              unzip -p "$STABLE_IPA" "Payload/*.app/Info.plist" > ../stable_info.plist
+            fi
+            cd .. && rm -rf stable_tmp
+            if [ -f stable_info.plist ]; then
               STABLE_VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('stable_info.plist', 'rb')).get('CFBundleShortVersionString', ''))")
               echo "STABLE_VERSION=${STABLE_VERSION}" >> $GITHUB_ENV
               echo "STABLE_DATE=$(echo "$STABLE_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
               echo "STABLE_SIZE=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
+              STABLE_DL=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .browser_download_url' | head -n 1)
               echo "STABLE_DL=${STABLE_DL}" >> $GITHUB_ENV
             fi
           fi
           if [ -n "$NIGHTLY_RAW_TAG" ]; then
-            NIGHTLY_DL=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .browser_download_url' | head -n 1)
-            if [ -n "$NIGHTLY_DL" ]; then
-              curl -L -o nightly.ipa "$NIGHTLY_DL"
-              unzip -p nightly.ipa "Payload/*.app/Info.plist" > nightly_info.plist
+            mkdir -p nightly_tmp && cd nightly_tmp
+            gh release download "$NIGHTLY_RAW_TAG" --repo "${{ github.repository }}" --pattern "*.ipa" --clobber
+            NIGHTLY_IPA=$(ls *.ipa 2>/dev/null | head -n 1)
+            if [ -n "$NIGHTLY_IPA" ]; then
+              unzip -p "$NIGHTLY_IPA" "Payload/*.app/Info.plist" > ../nightly_info.plist
+            fi
+            cd .. && rm -rf nightly_tmp
+            if [ -f nightly_info.plist ]; then
               NIGHTLY_VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('nightly_info.plist', 'rb')).get('CFBundleShortVersionString', ''))")
               echo "NIGHTLY_VERSION=${NIGHTLY_VERSION}" >> $GITHUB_ENV
               echo "NIGHTLY_DATE=$(echo "$NIGHTLY_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
               echo "NIGHTLY_SIZE=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
+              NIGHTLY_DL=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .browser_download_url' | head -n 1)
               echo "NIGHTLY_DL=${NIGHTLY_DL}" >> $GITHUB_ENV
             fi
           fi
