@@ -46,7 +46,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          UPSTREAM_DATA=$(gh api repos/jaydenjcpy/EeveeSpotifyReincarnated-Repo/releases --jq '.[0]')
+          UPSTREAM_DATA=$(gh api repos/jaydenjcpy/EeveeSpotifyReincarnated/releases --jq '.[0]')
           UPSTREAM_BODY=$(echo "$UPSTREAM_DATA" | jq -r '.body')
           echo "BODY<<EOF" >> $GITHUB_ENV
           echo "$UPSTREAM_BODY" >> $GITHUB_ENV
