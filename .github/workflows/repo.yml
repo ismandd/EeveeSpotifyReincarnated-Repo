@@ -1,0 +1,94 @@
+name: Update Repo JSON
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Fetch My Repo Data
+        id: get_my_release
+        run: |
+          RELEASES_DATA=$(curl -s https://api.github.com/repos/ismandd/EeveeSpotifyReincarnated/releases)
+          STABLE_RELEASE=$(echo "$RELEASES_DATA" | jq -c '.[] | select(.tag_name | test("nightly") | not)' | head -n 1)
+          NIGHTLY_RELEASE=$(echo "$RELEASES_DATA" | jq -c '.[] | select(.tag_name | test("nightly"))' | head -n 1)
+          STABLE_RAW_TAG=$(echo "$STABLE_RELEASE" | jq -r '.tag_name // empty')
+          NIGHTLY_RAW_TAG=$(echo "$NIGHTLY_RELEASE" | jq -r '.tag_name // empty')
+          if [ -n "$STABLE_RAW_TAG" ]; then
+            STABLE_TAG=$(echo "$STABLE_RAW_TAG" | sed 's/^v//')
+            STABLE_EEVEE=$(echo "$STABLE_TAG" | cut -d'-' -f1)
+            STABLE_SPOT=$(echo "$STABLE_TAG" | cut -d'-' -f2)
+            echo "STABLE_VERSION=${STABLE_SPOT}.${STABLE_EEVEE}" >> $GITHUB_ENV
+            echo "STABLE_DATE=$(echo "$STABLE_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
+            echo "STABLE_SIZE=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
+            echo "STABLE_DL=https://github.com/ismandd/EeveeSpotifyReincarnated/releases/download/${STABLE_RAW_TAG}/EeveeSpotify.ipa" >> $GITHUB_ENV
+          fi
+          if [ -n "$NIGHTLY_RAW_TAG" ]; then
+            NIGHTLY_TAG=$(echo "$NIGHTLY_RAW_TAG" | sed 's/^v//')
+            NIGHTLY_EEVEE=$(echo "$NIGHTLY_TAG" | cut -d'-' -f1)
+            NIGHTLY_SPOT=$(echo "$NIGHTLY_TAG" | cut -d'-' -f2)
+            echo "NIGHTLY_VERSION=${NIGHTLY_SPOT}.${NIGHTLY_EEVEE}" >> $GITHUB_ENV
+            echo "NIGHTLY_DATE=$(echo "$NIGHTLY_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
+            echo "NIGHTLY_SIZE=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
+            echo "NIGHTLY_DL=https://github.com/ismandd/EeveeSpotifyReincarnated/releases/download/${NIGHTLY_RAW_TAG}/EeveeSpotify.ipa" >> $GITHUB_ENV
+          fi
+
+      - name: Fetch Upstream Release Notes
+        id: get_upstream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          UPSTREAM_DATA=$(gh api repos/jaydenjcpy/EeveeSpotifyReincarnated/releases --jq '.[0]')
+          UPSTREAM_BODY=$(echo "$UPSTREAM_DATA" | jq -r '.body')
+          echo "BODY<<EOF" >> $GITHUB_ENV
+          echo "$UPSTREAM_BODY" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Update repo.json
+        run: |
+          jq --arg s_ver "$STABLE_VERSION" \
+             --arg s_dt "$STABLE_DATE" \
+             --argjson s_sz "${STABLE_SIZE:-0}" \
+             --arg s_dl "$STABLE_DL" \
+             --arg n_ver "$NIGHTLY_VERSION" \
+             --arg n_dt "$NIGHTLY_DATE" \
+             --argjson n_sz "${NIGHTLY_SIZE:-0}" \
+             --arg n_dl "$NIGHTLY_DL" \
+             --arg desc "$BODY" \
+             '.apps[0].name = "EeveeSpotify" |
+              .apps[0].bundleIdentifier = "com.spotify.client" |
+              .apps[0].developerName = "" |
+              .apps[0].subtitle = "Spotify Premium Enhancement" |
+              .apps[0].localizedDescription = $desc |
+              .apps[0].iconURL = "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated/refs/heads/Master/Assets/AppIcon/SpotifyDisco%402x.png" |
+              .apps[0].tintColor = "#1ed760" |
+              .apps[0].version = $s_ver |
+              .apps[0].versions = [{version: $s_ver, date: $s_dt, size: $s_sz, downloadURL: $s_dl, localizedDescription: $desc}] + [.apps[0].versions[]? | select(.version != $s_ver)] |
+              .apps[1].name = "EeveeSpotify (Nightly)" |
+              .apps[1].bundleIdentifier = "com.spotify.client.nightly" |
+              .apps[1].developerName = "" |
+              .apps[1].subtitle = "Spotify Premium Enhancement (Nightly)" |
+              .apps[1].localizedDescription = $desc |
+              .apps[1].iconURL = "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated/refs/heads/Master/Assets/AppIcon/SpotifyDisco%402x.png" |
+              .apps[1].tintColor = "#1ed760" |
+              .apps[1].version = $n_ver |
+              .apps[1].versions = [{version: $n_ver, date: $n_dt, size: $n_sz, downloadURL: $n_dl, localizedDescription: $desc}] + [.apps[1].versions[]? | select(.version != $n_ver)]' repo.json > temp.json
+          mv temp.json repo.json
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add repo.json
+          git diff-index --quiet HEAD || git commit -m "Update EeveeSpotify Stable and Nightly tracking"
+          git push
+
+      - name: Purge jsDelivr Cache
+        run: |
+          curl -s https://purge.jsdelivr.net/gh/ismandd/EeveeSpotifyReincarnated@Master/repo.json
