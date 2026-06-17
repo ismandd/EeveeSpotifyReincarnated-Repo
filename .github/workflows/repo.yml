@@ -14,31 +14,39 @@ jobs:
 
       - name: Fetch My Repo Data
         id: get_my_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASES_DATA=$(curl -s https://api.github.com/repos/ismandd/EeveeSpotifyReincarnated-Repo/releases)
-          STABLE_RELEASE=$(echo "$RELEASES_DATA" | jq -c '.[] | select(.tag_name | test("nightly") | not)' | head -n 1)
-          NIGHTLY_RELEASE=$(echo "$RELEASES_DATA" | jq -c '.[] | select(.tag_name | test("nightly"))' | head -n 1)
-          STABLE_RAW_TAG=$(echo "$STABLE_RELEASE" | jq -r '.tag_name // empty')
-          NIGHTLY_RAW_TAG=$(echo "$NIGHTLY_RELEASE" | jq -r '.tag_name // empty')
+          RELEASES_DATA=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" "https://api.github.com/repos/${{ github.repository }}/releases")
+          echo "Available Release Tags:"
+          echo "$RELEASES_DATA" | jq -r '.[].tag_name' 2>/dev/null || echo "None"
+          STABLE_RELEASE=$(echo "$RELEASES_DATA" | jq -c '.[] | select(.tag_name | test("nightly") | not)' 2>/dev/null | head -n 1)
+          NIGHTLY_RELEASE=$(echo "$RELEASES_DATA" | jq -c '.[] | select(.tag_name | test("nightly"))' 2>/dev/null | head -n 1)
+          STABLE_RAW_TAG=$(echo "$STABLE_RELEASE" | jq -r '.tag_name // empty' 2>/dev/null)
+          NIGHTLY_RAW_TAG=$(echo "$NIGHTLY_RELEASE" | jq -r '.tag_name // empty' 2>/dev/null)
           if [ -n "$STABLE_RAW_TAG" ]; then
             STABLE_DL=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .browser_download_url' | head -n 1)
-            curl -L -o stable.ipa "$STABLE_DL"
-            unzip -p stable.ipa "Payload/*.app/Info.plist" > stable_info.plist
-            STABLE_VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('stable_info.plist', 'rb')).get('CFBundleShortVersionString', ''))")
-            echo "STABLE_VERSION=${STABLE_VERSION}" >> $GITHUB_ENV
-            echo "STABLE_DATE=$(echo "$STABLE_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
-            echo "STABLE_SIZE=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
-            echo "STABLE_DL=${STABLE_DL}" >> $GITHUB_ENV
+            if [ -n "$STABLE_DL" ]; then
+              curl -L -o stable.ipa "$STABLE_DL"
+              unzip -p stable.ipa "Payload/*.app/Info.plist" > stable_info.plist
+              STABLE_VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('stable_info.plist', 'rb')).get('CFBundleShortVersionString', ''))")
+              echo "STABLE_VERSION=${STABLE_VERSION}" >> $GITHUB_ENV
+              echo "STABLE_DATE=$(echo "$STABLE_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
+              echo "STABLE_SIZE=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
+              echo "STABLE_DL=${STABLE_DL}" >> $GITHUB_ENV
+            fi
           fi
           if [ -n "$NIGHTLY_RAW_TAG" ]; then
             NIGHTLY_DL=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .browser_download_url' | head -n 1)
-            curl -L -o nightly.ipa "$NIGHTLY_DL"
-            unzip -p nightly.ipa "Payload/*.app/Info.plist" > nightly_info.plist
-            NIGHTLY_VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('nightly_info.plist', 'rb')).get('CFBundleShortVersionString', ''))")
-            echo "NIGHTLY_VERSION=${NIGHTLY_VERSION}" >> $GITHUB_ENV
-            echo "NIGHTLY_DATE=$(echo "$NIGHTLY_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
-            echo "NIGHTLY_SIZE=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
-            echo "NIGHTLY_DL=${NIGHTLY_DL}" >> $GITHUB_ENV
+            if [ -n "$NIGHTLY_DL" ]; then
+              curl -L -o nightly.ipa "$NIGHTLY_DL"
+              unzip -p nightly.ipa "Payload/*.app/Info.plist" > nightly_info.plist
+              NIGHTLY_VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('nightly_info.plist', 'rb')).get('CFBundleShortVersionString', ''))")
+              echo "NIGHTLY_VERSION=${NIGHTLY_VERSION}" >> $GITHUB_ENV
+              echo "NIGHTLY_DATE=$(echo "$NIGHTLY_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
+              echo "NIGHTLY_SIZE=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
+              echo "NIGHTLY_DL=${NIGHTLY_DL}" >> $GITHUB_ENV
+            fi
           fi
 
       - name: Fetch Upstream Release Notes
@@ -68,7 +76,7 @@ jobs:
               .apps[0].developerName = "" |
               .apps[0].subtitle = "Spotify Premium Enhancement" |
               .apps[0].localizedDescription = $desc |
-              .apps[0].iconURL = "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated-Repo/refs/heads/Master/Assets/AppIcon/SpotifyDisco%402x.png" |
+              .apps[0].iconURL = "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated/refs/heads/Master/Assets/AppIcon/SpotifyDisco%402x.png" |
               .apps[0].tintColor = "#1ed760" |
               .apps[0].version = $s_ver |
               .apps[0].versions = [{version: $s_ver, date: $s_dt, size: $s_sz, downloadURL: $s_dl, localizedDescription: $desc}] + [.apps[0].versions[]? | select(.version != $s_ver)] |
@@ -77,7 +85,7 @@ jobs:
               .apps[1].developerName = "" |
               .apps[1].subtitle = "Spotify Premium Enhancement (Nightly)" |
               .apps[1].localizedDescription = $desc |
-              .apps[1].iconURL = "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated-Repo/refs/heads/Master/Assets/AppIcon/SpotifyDisco%402x.png" |
+              .apps[1].iconURL = "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated/refs/heads/Master/Assets/AppIcon/SpotifyDisco%402x.png" |
               .apps[1].tintColor = "#1ed760" |
               .apps[1].version = $n_ver |
               .apps[1].versions = [{version: $n_ver, date: $n_dt, size: $n_sz, downloadURL: $n_dl, localizedDescription: $desc}] + [.apps[1].versions[]? | select(.version != $n_ver)]' repo.json > temp.json
@@ -93,4 +101,4 @@ jobs:
 
       - name: Purge jsDelivr Cache
         run: |
-          curl -s https://purge.jsdelivr.net/gh/ismandd/EeveeSpotifyReincarnated-Repo@Master/repo.json
+          curl -s https://purge.jsdelivr.net/gh/ismandd/EeveeSpotifyReincarnated@Master/repo.json
