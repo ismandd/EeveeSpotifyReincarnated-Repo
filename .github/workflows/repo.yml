@@ -21,22 +21,24 @@ jobs:
           STABLE_RAW_TAG=$(echo "$STABLE_RELEASE" | jq -r '.tag_name // empty')
           NIGHTLY_RAW_TAG=$(echo "$NIGHTLY_RELEASE" | jq -r '.tag_name // empty')
           if [ -n "$STABLE_RAW_TAG" ]; then
-            STABLE_TAG=$(echo "$STABLE_RAW_TAG" | sed 's/^v//')
-            STABLE_EEVEE=$(echo "$STABLE_TAG" | cut -d'-' -f1)
-            STABLE_SPOT=$(echo "$STABLE_TAG" | cut -d'-' -f2)
-            echo "STABLE_VERSION=${STABLE_SPOT}.${STABLE_EEVEE}" >> $GITHUB_ENV
+            STABLE_DL=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .browser_download_url' | head -n 1)
+            curl -L -o stable.ipa "$STABLE_DL"
+            unzip -p stable.ipa "Payload/*.app/Info.plist" > stable_info.plist
+            STABLE_VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('stable_info.plist', 'rb')).get('CFBundleShortVersionString', ''))")
+            echo "STABLE_VERSION=${STABLE_VERSION}" >> $GITHUB_ENV
             echo "STABLE_DATE=$(echo "$STABLE_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
             echo "STABLE_SIZE=$(echo "$STABLE_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
-            echo "STABLE_DL=https://github.com/ismandd/EeveeSpotifyReincarnated/releases/download/${STABLE_RAW_TAG}/EeveeSpotify.ipa" >> $GITHUB_ENV
+            echo "STABLE_DL=${STABLE_DL}" >> $GITHUB_ENV
           fi
           if [ -n "$NIGHTLY_RAW_TAG" ]; then
-            NIGHTLY_TAG=$(echo "$NIGHTLY_RAW_TAG" | sed 's/^v//')
-            NIGHTLY_EEVEE=$(echo "$NIGHTLY_TAG" | cut -d'-' -f1)
-            NIGHTLY_SPOT=$(echo "$NIGHTLY_TAG" | cut -d'-' -f2)
-            echo "NIGHTLY_VERSION=${NIGHTLY_SPOT}.${NIGHTLY_EEVEE}" >> $GITHUB_ENV
+            NIGHTLY_DL=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .browser_download_url' | head -n 1)
+            curl -L -o nightly.ipa "$NIGHTLY_DL"
+            unzip -p nightly.ipa "Payload/*.app/Info.plist" > nightly_info.plist
+            NIGHTLY_VERSION=$(python3 -c "import plistlib; print(plistlib.load(open('nightly_info.plist', 'rb')).get('CFBundleShortVersionString', ''))")
+            echo "NIGHTLY_VERSION=${NIGHTLY_VERSION}" >> $GITHUB_ENV
             echo "NIGHTLY_DATE=$(echo "$NIGHTLY_RELEASE" | jq -r '.published_at' | cut -d'T' -f1)" >> $GITHUB_ENV
             echo "NIGHTLY_SIZE=$(echo "$NIGHTLY_RELEASE" | jq -r '.assets[] | select(.name | ascii_downcase | endswith(".ipa")) | .size' | head -n 1)" >> $GITHUB_ENV
-            echo "NIGHTLY_DL=https://github.com/ismandd/EeveeSpotifyReincarnated/releases/download/${NIGHTLY_RAW_TAG}/EeveeSpotify.ipa" >> $GITHUB_ENV
+            echo "NIGHTLY_DL=${NIGHTLY_DL}" >> $GITHUB_ENV
           fi
 
       - name: Fetch Upstream Release Notes
@@ -91,4 +93,4 @@ jobs:
 
       - name: Purge jsDelivr Cache
         run: |
-          curl -s https://purge.jsdelivr.net/gh/ismandd/EeveeSpotifyReincarnated@Master/repo.json
+          curl -s https://purge.jsdelivr.net/gh/ismandd/EeveeSpotifyReincarnated-Repo@Master/repo.json
