@@ -38,8 +38,15 @@
       "localizedDescription": "# Release Notes:\r\n\r\nImproved :\r\n- Support for Spotify 9.1.56\r\n- LRCLIB lyrics\r\n\r\nNew Icons:\r\n- EvilSpotify \r\n- SpotifyMonochrome\r\n- Greenify\r\n- Eevify\r\n- SmallvileSpotify\r\n- MikuSpotify\r\n- SpotifyDarkBlue\r\n- SpotifyDeepGreen\r\n- SpotifyFrieren\r\n- Supermanify\r\n\r\nPatched vs Not Patched\r\nUse patched if you use a paid cert or troll store\r\n\r\nUse the non patched one for other methods like Sideloadly/Altstore/Sidestore\r\n\r\nCredits for this update:\r\n\r\n[Ryuk](https://github.com/faroukbmiled) \r\n\r\n[Mod4](https://github.com/M0d-4) \r\n\r\n[estrogencat](https://github.com/estrogencat)\r\n\r\nTrollFools .zip by [iOSVN](https://t.me/ioscrackvn)\r\n\r\n**Join [TG channel](https://t.me/compiledipas) to recieve news on developement**\r\n\r\n**VIEW TXT FILE**\r\n\r\n\r",
       "iconURL": "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated/refs/heads/Master/Assets/AppIcon/SpotifyDisco%402x.png",
       "tintColor": "#1ed760",
-      "version": "6.6.5.9.1.56.4be6df9",
+      "version": "6.6.5.9.1.56.aa1d23d",
       "versions": [
+        {
+          "version": "6.6.5.9.1.56.aa1d23d",
+          "date": "2026-06-18",
+          "size": 117340751,
+          "downloadURL": "https://github.com/ismandd/EeveeSpotifyReincarnated-Repo/releases/download/v6.6.5-9.1.56-nightly-aa1d23d/EeveeSpotify-v6.6.5-9.1.56-nightly-aa1d23d.ipa",
+          "localizedDescription": "# Release Notes:\r\n\r\nImproved :\r\n- Support for Spotify 9.1.56\r\n- LRCLIB lyrics\r\n\r\nNew Icons:\r\n- EvilSpotify \r\n- SpotifyMonochrome\r\n- Greenify\r\n- Eevify\r\n- SmallvileSpotify\r\n- MikuSpotify\r\n- SpotifyDarkBlue\r\n- SpotifyDeepGreen\r\n- SpotifyFrieren\r\n- Supermanify\r\n\r\nPatched vs Not Patched\r\nUse patched if you use a paid cert or troll store\r\n\r\nUse the non patched one for other methods like Sideloadly/Altstore/Sidestore\r\n\r\nCredits for this update:\r\n\r\n[Ryuk](https://github.com/faroukbmiled) \r\n\r\n[Mod4](https://github.com/M0d-4) \r\n\r\n[estrogencat](https://github.com/estrogencat)\r\n\r\nTrollFools .zip by [iOSVN](https://t.me/ioscrackvn)\r\n\r\n**Join [TG channel](https://t.me/compiledipas) to recieve news on developement**\r\n\r\n**VIEW TXT FILE**\r\n\r\n\r"
+        },
         {
           "version": "6.6.5.9.1.56.4be6df9",
           "date": "2026-06-18",
