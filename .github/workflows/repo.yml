@@ -129,4 +129,4 @@ jobs:
 
       - name: Purge jsDelivr Cache
         run: |
-          curl -s https://purge.jsdelivr.net/gh/ismandd/EeveeSpotifyReincarnated-Repo@Master/repo.json
+          curl -s https://purge.jsdelivr.net/gh/ismandd/EeveeSpotifyReincarnated-Repo@main/repo.json
