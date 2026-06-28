@@ -17,7 +17,7 @@
       "developerName": "",
       "subtitle": "Spotify Premium Enhancement",
       "localizedDescription": "# Release Notes:\r\n\r\nNew Features:\r\n\r\nSpicyLyrics([b9d3014](https://github.com/jaydenjcpy/EeveeSpotifyReincarnated/commit/b9d301488653c7ca5ccc61d80dcbba293f9bce88))\r\n\r\nImproved :\r\n\r\nSupport for Spotify 9.1.60\r\n\r\nAll lyrics sources \r\n\r\nNew icons, thx to all submitters\r\n\r\n\r\n**Non-Patched for SideStore, AltStore, sideloadly, LiveContainer, free leaked enterprise cert.”**\r\n\r\n**Patched = for jailbroken, or paid cert**\r\n\r\n**ESign will cause crash**\r\n\r\nCredits:\r\n\r\n[Ryuk](https://github.com/faroukbmiled) \r\n\r\n[Mod4](https://github.com/M0d-4) \r\n\r\n[estrogencat](https://github.com/estrogencat)\r\n\r\n**Join [TG channel](https://t.me/compiledipas) to recieve news on developement**\r\n\r\n**VIEW TXT FILE**\r\n\r\n\r",
-      "iconURL": "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated-Repo/refs/heads/Master/icons/stable.png",
+      "iconURL": "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated-Repo/refs/heads/main/icons/stable.png",
       "tintColor": "#1ed760",
       "version": "6.6.6.9.1.60",
       "versions": [
@@ -50,7 +50,7 @@
       "developerName": "",
       "subtitle": "Spotify Premium Enhancement (Nightly)",
       "localizedDescription": "# Release Notes:\r\n\r\nNew Features:\r\n\r\nSpicyLyrics([b9d3014](https://github.com/jaydenjcpy/EeveeSpotifyReincarnated/commit/b9d301488653c7ca5ccc61d80dcbba293f9bce88))\r\n\r\nImproved :\r\n\r\nSupport for Spotify 9.1.60\r\n\r\nAll lyrics sources \r\n\r\nNew icons, thx to all submitters\r\n\r\n\r\n**Non-Patched for SideStore, AltStore, sideloadly, LiveContainer, free leaked enterprise cert.”**\r\n\r\n**Patched = for jailbroken, or paid cert**\r\n\r\n**ESign will cause crash**\r\n\r\nCredits:\r\n\r\n[Ryuk](https://github.com/faroukbmiled) \r\n\r\n[Mod4](https://github.com/M0d-4) \r\n\r\n[estrogencat](https://github.com/estrogencat)\r\n\r\n**Join [TG channel](https://t.me/compiledipas) to recieve news on developement**\r\n\r\n**VIEW TXT FILE**\r\n\r\n\r",
-      "iconURL": "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated-Repo/refs/heads/Master/icons/nightly.png",
+      "iconURL": "https://raw.githubusercontent.com/ismandd/EeveeSpotifyReincarnated-Repo/refs/heads/main/icons/nightly.png",
       "tintColor": "#1ed760",
       "version": "6.6.6.9.1.60.0b608f0",
       "versions": [
