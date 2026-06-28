@@ -35,7 +35,7 @@ jobs:
               fi
               if [ -n "$ICON_PATH" ]; then
                 unzip -p "$STABLE_IPA" "$ICON_PATH" > ../icons/stable.png
-                echo "STABLE_ICON_URL=https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/Master/icons/stable.png" >> $GITHUB_ENV
+                echo "STABLE_ICON_URL=https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/icons/stable.png" >> $GITHUB_ENV
               fi
             fi
             cd .. && rm -rf stable_tmp
@@ -60,7 +60,7 @@ jobs:
               fi
               if [ -n "$ICON_PATH" ]; then
                 unzip -p "$NIGHTLY_IPA" "$ICON_PATH" > ../icons/nightly.png
-                echo "NIGHTLY_ICON_URL=https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/Master/icons/nightly.png" >> $GITHUB_ENV
+                echo "NIGHTLY_ICON_URL=https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/main/icons/nightly.png" >> $GITHUB_ENV
               fi
             fi
             cd .. && rm -rf nightly_tmp
