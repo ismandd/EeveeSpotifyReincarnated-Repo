@@ -62,7 +62,7 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: '16.2.0'
+          xcode-version: '26.3.0'
 
       - name: Cache Theos
         id: cache-theos
