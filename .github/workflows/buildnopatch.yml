@@ -12,7 +12,7 @@ on:
         type: string
       ipa_url:
         description: "URL to decrypted Spotify IPA"
-        default: "https://github.com/ismandd/LatestDecyptedSpotifyIpa/releases/latest/download/Spotify-AppAssassin.ipa"
+        default: "https://github.com/ismandd/LatestDecyptedSpotifyIpa/releases/latestdownload/com.toyopagroup.picaboo-eeveedecrypter.ipa"
         required: false
         type: string
 
